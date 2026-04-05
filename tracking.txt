@@ -1,4 +1,6 @@
 Heat 1: grandprixtest
-Heat 2:
+Heat 2: xdosu4yg
 Date/Time Input: 2026-01-27 12:45
 Discord Timestamp: <t:1769535900:f>
+WinnersOpen: {}
+WinnersNB: {"thespine":2}

@@ -13,7 +13,7 @@ const api = new API(rest);
 const result = await api.applicationCommands.bulkOverwriteGuildCommands(
 	process.env.APPLICATION_ID,
 	process.env.GUILD_ID,
-	commandData
+	commandData,
 );
 
 console.log(`Successfully registered ${result.length} commands.`);

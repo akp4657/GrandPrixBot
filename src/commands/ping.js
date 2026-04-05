@@ -8,9 +8,7 @@ export default {
 	},
 	async execute(interaction) {
 		// Create the modal
-		const modal = new ModalBuilder()
-			.setCustomId('configure-heat-modal')
-			.setTitle('Configure Heat');
+		const modal = new ModalBuilder().setCustomId('configure-heat-modal').setTitle('Configure Heat');
 
 		// Create text input components
 		const heat1Input = new TextInputBuilder()
