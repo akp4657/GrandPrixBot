@@ -2,8 +2,10 @@ import process from 'node:process';
 import { URL } from 'node:url';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { loadEvents } from './util/loaders.js';
+import { registerGuildCommands } from './util/registerGuildCommands.js';
 
-// Initialize the client
+await registerGuildCommands();
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 // Load the events and commands

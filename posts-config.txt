@@ -1,0 +1,5 @@
+XLinks: ["https://x.com/DFCGrandPrix/status/2034296267585847315?s=20"]
+GoogleForm: https://t.co/hdgKqORbnc
+GoogleFormMessage1st: Sign ups are live!
+GoogleFormMessage15th: Reminder to sign up for the Grand Prix!
+GoogleFormMessageLast: Last few moments to sign up!

@@ -1,5 +1,14 @@
 import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { challongeTournamentUrl, getMatchDisplayNames, listReportableMatches, updateMatchScores } from './challonge.js';
+import { notifyAdminRoundComplete } from './adminNotify.js';
+import {
+	challongeTournamentUrl,
+	fetchNormalizedMatches,
+	getMatchDisplayNames,
+	isRoundFullyComplete,
+	listReportableMatches,
+	roundForMatchId,
+	updateMatchScores,
+} from './challonge.js';
 import { getHeatSlug } from './heatConfig.js';
 
 const MAX_SELECT_OPTIONS = 25;
@@ -237,7 +246,19 @@ export async function handleReportHeatScoreModal(interaction) {
 			return;
 		}
 
+		const beforeMatches = await fetchNormalizedMatches(slug);
+		const round = roundForMatchId(beforeMatches, matchId);
+		const roundDoneBefore = isRoundFullyComplete(beforeMatches, round);
+
 		await updateMatchScores(slug, matchId, `${p1}-${p2}`, winnerId);
+
+		const afterMatches = await fetchNormalizedMatches(slug);
+		const roundDoneAfter = isRoundFullyComplete(afterMatches, round);
+		if (!roundDoneBefore && roundDoneAfter) {
+			void notifyAdminRoundComplete(interaction.client, { heatNumber, slug, round }).catch((err) =>
+				console.error('admin round-complete DM:', err),
+			);
+		}
 
 		const reporter = interaction.user.tag;
 		const url = challongeTournamentUrl(slug);

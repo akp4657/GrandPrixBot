@@ -20,12 +20,12 @@ function parseLine(content, prefix) {
 }
 
 /**
- * Reads heat-config.txt from the project root and returns Challonge tournament slugs.
+ * Reads tracking.txt from the project root and returns Challonge tournament slugs.
  *
  * @returns {Promise<{ heat1: string; heat2: string }>}
  */
 export async function readHeatConfig() {
-	const filePath = join(process.cwd(), 'heat-config.txt');
+	const filePath = join(process.cwd(), 'tracking.txt');
 	const content = await readFile(filePath, 'utf-8');
 	const heat1 = parseLine(content, HEAT1_PREFIX);
 	const heat2 = parseLine(content, HEAT2_PREFIX);

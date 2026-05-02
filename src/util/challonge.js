@@ -74,7 +74,7 @@ function participantSlotId(wrapped, side) {
 /**
  * @param {unknown} item
  * @param {Map<number, string>} participantMap
- * @returns {{ id: number; state: string; label: string; raw: Record<string, unknown> }}
+ * @returns {{ id: number; state: string; label: string; round: number; raw: Record<string, unknown> }}
  */
 function normalizeMatch(item, participantMap) {
 	const wrapped =
@@ -85,8 +85,13 @@ function normalizeMatch(item, participantMap) {
 	const rawId = wrapped?.id;
 	const id = typeof rawId === 'number' ? rawId : Number(rawId);
 	const state = typeof wrapped?.state === 'string' ? wrapped.state : '';
+	const rawRound = wrapped?.round;
+	const round = typeof rawRound === 'number' ? rawRound : Number(rawRound);
 	if (!Number.isFinite(id)) {
 		throw new Error('Invalid match payload from Challonge.');
+	}
+	if (!Number.isFinite(round)) {
+		throw new Error('Invalid match payload from Challonge (round).');
 	}
 
 	const a = resolveSideName(wrapped, 'player1', participantMap);
@@ -96,6 +101,7 @@ function normalizeMatch(item, participantMap) {
 		id,
 		state,
 		label,
+		round,
 		raw: wrapped,
 	};
 }
@@ -168,14 +174,66 @@ export async function listReportableMatches(tournamentSlug) {
 	/** @type {Array<{ id: number; state: string; label: string }>} */
 	const out = [];
 	for (const item of data) {
-		//console.log(item);
 		const norm = normalizeMatch(item, participantMap);
-		console.log(norm);
 		if (REPORTABLE_STATES.has(norm.state) || norm.raw.winner_id === null) {
 			out.push({ id: norm.id, state: norm.state, label: norm.label });
 		}
 	}
 	return out;
+}
+
+/**
+ * @param {Array<{ id: number; state: string; label: string; round: number }>} matches
+ * @param {number} matchId
+ * @returns {number}
+ */
+export function roundForMatchId(matches, matchId) {
+	const m = matches.find((x) => x.id === matchId);
+	if (!m) {
+		throw new Error(`Match ${matchId} not found in tournament snapshot.`);
+	}
+	return m.round;
+}
+
+/**
+ * @param {Array<{ state: string; round: number }>} matches
+ * @param {number} round
+ */
+export function isRoundFullyComplete(matches, round) {
+	const inRound = matches.filter((x) => x.round === round);
+	if (inRound.length === 0) return false;
+	return inRound.every((x) => x.state === 'complete');
+}
+
+/**
+ * All matches with round numbers (for round-complete detection).
+ *
+ * @param {string} tournamentSlug
+ * @returns {Promise<Array<{ id: number; state: string; round: number; label: string }>>}
+ */
+export async function fetchNormalizedMatches(tournamentSlug) {
+	const matchesUrl = new URL(`${BASE}/tournaments/${encodeURIComponent(tournamentSlug)}/matches.json`);
+	matchesUrl.searchParams.set('include_participants', '1');
+
+	const [participantMap, res] = await Promise.all([
+		fetchParticipantsMap(tournamentSlug),
+		fetch(matchesUrl, { headers: { ...authHeaders() } }),
+	]);
+
+	if (!res.ok) {
+		await throwForBadResponse(res);
+	}
+
+	/** @type {unknown} */
+	const data = await res.json();
+	if (!Array.isArray(data)) {
+		throw new Error('Unexpected Challonge matches response.');
+	}
+
+	return data.map((item) => {
+		const norm = normalizeMatch(item, participantMap);
+		return { id: norm.id, state: norm.state, round: norm.round, label: norm.label };
+	});
 }
 
 /**
@@ -243,6 +301,54 @@ export async function updateMatchScores(tournamentSlug, matchId, score, winnerId
 	if (!res.ok) {
 		await throwForBadResponse(res);
 	}
+}
+
+/**
+ * Lists only strictly open matches (state === 'open') for deadline auto-close.
+ *
+ * @param {string} tournamentSlug
+ * @returns {Promise<Array<{ id: number; label: string }>>}
+ */
+export async function listOpenMatches(tournamentSlug) {
+	const matchesUrl = new URL(`${BASE}/tournaments/${encodeURIComponent(tournamentSlug)}/matches.json`);
+	matchesUrl.searchParams.set('include_participants', '1');
+
+	const [participantMap, res] = await Promise.all([
+		fetchParticipantsMap(tournamentSlug),
+		fetch(matchesUrl, { headers: { ...authHeaders() } }),
+	]);
+
+	if (!res.ok) {
+		await throwForBadResponse(res);
+	}
+
+	/** @type {unknown} */
+	const data = await res.json();
+	if (!Array.isArray(data)) {
+		throw new Error('Unexpected Challonge matches response.');
+	}
+
+	/** @type {Array<{ id: number; label: string }>} */
+	const out = [];
+	for (const item of data) {
+		const norm = normalizeMatch(item, participantMap);
+		if (norm.state === 'open') {
+			out.push({ id: norm.id, label: norm.label });
+		}
+	}
+	return out;
+}
+
+/**
+ * Closes a match as a 0-0 draw (tie). Errors are thrown so the caller can log per-match.
+ * Note: Challonge only accepts `winner_id=tie` for swiss/round-robin brackets.
+ *
+ * @param {string} tournamentSlug
+ * @param {number} matchId
+ * @returns {Promise<void>}
+ */
+export async function closeMatchAsDraw(tournamentSlug, matchId) {
+	await updateMatchScores(tournamentSlug, matchId, '0-0', 'tie');
 }
 
 /**
