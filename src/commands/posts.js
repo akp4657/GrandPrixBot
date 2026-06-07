@@ -4,7 +4,7 @@ import { ActionRowBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, 
 export default {
 	data: {
 		name: 'posts',
-		description: 'Configure scheduled Discord posts (X links, Google Form messages)',
+		description: 'Configure Discord posts (X links, Google Form messages)',
 		defaultMemberPermissions: String(PermissionFlagsBits.Administrator),
 	},
 	async execute(interaction) {
