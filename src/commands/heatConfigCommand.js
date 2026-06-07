@@ -1,46 +1,42 @@
-import process from 'node:process';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { ActionRowBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { readHeatConfig } from '../util/heatConfig.js';
-import { readDueDateRaw } from '../util/tracking.js';
+import {
+	ActionRowBuilder,
+	MessageFlags,
+	ModalBuilder,
+	PermissionFlagsBits,
+	TextInputBuilder,
+	TextInputStyle,
+} from 'discord.js';
+import { listHeats, parseHeatLines, readHeatConfig } from '../util/heatConfig.js';
+import { readDueDateRaw, writeHeatConfiguration, DUE_DATE_FORMAT, normalizeDueDateString } from '../util/tracking.js';
 
 /** @type {import('./index.js').Command} */
 export default {
 	data: {
 		name: 'configure-heat',
-		description: 'Configure a heat with details',
+		description: 'Configure heats and due date',
 		defaultMemberPermissions: String(PermissionFlagsBits.Administrator),
 	},
 	async execute(interaction) {
-		const modal = new ModalBuilder().setCustomId('configure-heat-modal').setTitle('Configure Heat');
+		const modal = new ModalBuilder().setCustomId('configure-heat-modal').setTitle('Configure Heats');
 
-		const heat1Input = new TextInputBuilder()
-			.setCustomId('heat1')
-			.setLabel('Heat 1 (leave blank to keep current)')
-			.setStyle(TextInputStyle.Short)
+		const heatsInput = new TextInputBuilder()
+			.setCustomId('heats')
+			.setLabel('Heats (one per line: Heat N: slug)')
+			.setStyle(TextInputStyle.Paragraph)
 			.setRequired(false)
-			.setPlaceholder('Heat 1 Challonge slug');
-
-		const heat2Input = new TextInputBuilder()
-			.setCustomId('heat2')
-			.setLabel('Heat 2 (leave blank to keep current)')
-			.setStyle(TextInputStyle.Short)
-			.setRequired(false)
-			.setPlaceholder('Heat 2 Challonge slug');
+			.setPlaceholder('Heat 1: slug\nHeat 2: slug\n...\nBlank = keep current heats');
 
 		const dateTimeInput = new TextInputBuilder()
 			.setCustomId('datetime')
 			.setLabel('Due date (optional)')
 			.setStyle(TextInputStyle.Short)
 			.setRequired(false)
-			.setPlaceholder('Blank = unchanged. YYYY-MM-DD HH:MM or /set-due-date');
+			.setPlaceholder(`Blank = unchanged. ${DUE_DATE_FORMAT}`);
 
-		const firstActionRow = new ActionRowBuilder().addComponents(heat1Input);
-		const secondActionRow = new ActionRowBuilder().addComponents(heat2Input);
-		const thirdActionRow = new ActionRowBuilder().addComponents(dateTimeInput);
-
-		modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
+		modal.addComponents(
+			new ActionRowBuilder().addComponents(heatsInput),
+			new ActionRowBuilder().addComponents(dateTimeInput),
+		);
 
 		await interaction.showModal(modal);
 	},
@@ -50,34 +46,35 @@ export default {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  */
 export async function handleConfigureHeatModal(interaction) {
-	const heat1Input = interaction.fields.getTextInputValue('heat1').trim();
-	const heat2Input = interaction.fields.getTextInputValue('heat2').trim();
+	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+	const heatsInput = interaction.fields.getTextInputValue('heats').trim();
 	const dateTimeInput = interaction.fields.getTextInputValue('datetime').trim();
 
-	const current = await readHeatConfig();
-	const heat1 = heat1Input || current.heat1;
-	const heat2 = heat2Input || current.heat2;
-	const dateTime = dateTimeInput || (await readDueDateRaw());
+	const heats = heatsInput ? parseHeatLines(heatsInput) : await readHeatConfig();
+	let dateTime = dateTimeInput || (await readDueDateRaw());
+	if (dateTimeInput) {
+		const normalized = normalizeDueDateString(dateTimeInput);
+		if (!normalized) {
+			await interaction.editReply({
+				content: `Invalid due date: \`${dateTimeInput}\`. Use ${DUE_DATE_FORMAT} (example: \`2026-06-12 23:59\`).`,
+			});
+			return;
+		}
+		dateTime = normalized;
+	}
 
-	const filePath = join(process.cwd(), 'tracking.txt');
-	const existing = await readFile(filePath, 'utf-8');
-	const kept = existing
-		.split(/\r?\n/)
-		.filter((l) => l.trim() && !l.startsWith('Heat 1:') && !l.startsWith('Heat 2:') && !l.startsWith('DueDate:'))
-		.join('\n');
-	await writeFile(
-		filePath,
-		`Heat 1: ${heat1}\nHeat 2: ${heat2}\nDueDate: ${dateTime}\n${kept ? kept + '\n' : ''}`,
-		'utf-8',
+	await writeHeatConfiguration({ heats, dueDate: dateTime });
+
+	const heatLines = (await listHeats()).map(
+		({ number, slug }) => `**Heat ${number}:** ${slug || '(not set)'}`,
 	);
 
-	await interaction.reply({
+	await interaction.editReply({
 		content: [
-			'Heat configured successfully!',
-			`**Heat 1:** ${heat1 || '(not set)'}`,
-			`**Heat 2:** ${heat2 || '(not set)'}`,
+			'Heat configuration saved.',
+			heatLines.length ? heatLines.join('\n') : '(no heats configured)',
 			`**Due date:** ${dateTime || '(not set — use /set-due-date)'}`,
 		].join('\n'),
-		ephemeral: true,
 	});
 }

@@ -1,10 +1,10 @@
 import { Events } from 'discord.js';
 import { loadCommands } from '../util/loaders.js';
 import {
-	handleReportHeatScoreModal,
-	handleReportHeatSelect,
-	parseHeatFromSelectCustomId,
-	parseHeatScoreModalCustomId,
+	handleScoreReportModal,
+	handleScoreReportSelect,
+	isScoreReportSelect,
+	parseScoreReportModalCustomId,
 } from '../util/reportHeat.js';
 import { handlePostsModal } from '../util/postsConfig.js';
 import { handleConfigureHeatModal } from '../commands/heatConfigCommand.js';
@@ -16,7 +16,6 @@ export default {
 	async execute(interaction) {
 		if (interaction.isChatInputCommand()) {
 			const command = commands.get(interaction.commandName);
-			console.log(command);
 
 			if (!command) {
 				throw new Error(`Command '${interaction.commandName}' not found.`);
@@ -24,12 +23,12 @@ export default {
 
 			await command.execute(interaction);
 		} else if (interaction.isStringSelectMenu()) {
-			if (parseHeatFromSelectCustomId(interaction) !== null) {
-				await handleReportHeatSelect(interaction);
+			if (isScoreReportSelect(interaction)) {
+				await handleScoreReportSelect(interaction);
 			}
 		} else if (interaction.isModalSubmit()) {
-			if (parseHeatScoreModalCustomId(interaction)) {
-				await handleReportHeatScoreModal(interaction);
+			if (parseScoreReportModalCustomId(interaction)) {
+				await handleScoreReportModal(interaction);
 			} else if (interaction.customId === 'posts-modal') {
 				await handlePostsModal(interaction);
 			} else if (interaction.customId === 'configure-heat-modal') {

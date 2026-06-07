@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -78,6 +79,8 @@ async function writePostsConfig(cfg) {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  */
 export async function handlePostsModal(interaction) {
+	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
 	const rawLinks = interaction.fields.getTextInputValue('x_links').trim();
 	const googleForm = interaction.fields.getTextInputValue('google_form').trim();
 	const msg1st = interaction.fields.getTextInputValue('msg_1st').trim();
@@ -93,12 +96,11 @@ export async function handlePostsModal(interaction) {
 
 	await writePostsConfig({ xLinks, googleForm, msg1st, msg15th, msgLast });
 
-	await interaction.reply({
+	await interaction.editReply({
 		content: [
 			'**Posts configured.**',
 			`X Links: ${xLinks.length ? xLinks.join(', ') : '(none)'}`,
 			`Google Form: ${googleForm || '(none)'}`,
 		].join('\n'),
-		ephemeral: true,
 	});
 }

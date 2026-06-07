@@ -1,5 +1,5 @@
-import { ApplicationCommandOptionType, PermissionFlagsBits } from 'discord.js';
-import { writeDueDate } from '../util/tracking.js';
+import { ApplicationCommandOptionType, MessageFlags, PermissionFlagsBits } from 'discord.js';
+import { DUE_DATE_FORMAT, normalizeDueDateString, parseDueDateEst, writeDueDate } from '../util/tracking.js';
 
 /** @type {import('./index.js').Command} */
 export default {
@@ -10,7 +10,7 @@ export default {
 		options: [
 			{
 				name: 'date',
-				description: 'Deadline in YYYY-MM-DD HH:MM format (24h, local server time)',
+				description: `Deadline in ${DUE_DATE_FORMAT}`,
 				type: ApplicationCommandOptionType.String,
 				required: true,
 			},
@@ -18,20 +18,20 @@ export default {
 	},
 	async execute(interaction) {
 		const dateStr = interaction.options.getString('date', true).trim();
-		const parsed = new Date(dateStr);
 
-		if (Number.isNaN(parsed.getTime())) {
+		const normalized = normalizeDueDateString(dateStr);
+		if (!normalized || !parseDueDateEst(normalized)) {
 			await interaction.reply({
-				content: `Invalid date: \`${dateStr}\`. Use format \`YYYY-MM-DD HH:MM\`.`,
-				ephemeral: true,
+				content: `Invalid date: \`${dateStr}\`. Use ${DUE_DATE_FORMAT} (example: \`2026-06-12 23:59\`).`,
+				flags: MessageFlags.Ephemeral,
 			});
 			return;
 		}
 
-		await writeDueDate(dateStr);
+		await writeDueDate(normalized);
 		await interaction.reply({
-			content: `Due date set to **${dateStr}**. Open matches will auto-close as 0-0 draws when this time passes.`,
-			ephemeral: true,
+			content: `Due date set to **${normalized}** (24-hour US Eastern). Open matches will auto-close as 0-0 draws when this time passes; the admin will be notified in the admin posts channel 5 minutes later.`,
+			flags: MessageFlags.Ephemeral,
 		});
 	},
 };

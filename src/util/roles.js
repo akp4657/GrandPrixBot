@@ -39,8 +39,33 @@ function getRoleIds(category) {
 }
 
 /**
- * Loads a guild member via REST (works for offline users not in the in-memory cache).
+ * Paginate through every guild member via REST so role cleanup is exhaustive.
  *
+ * @param {import('discord.js').Guild} guild
+ * @returns {Promise<import('discord.js').Collection<string, import('discord.js').GuildMember>>}
+ */
+async function fetchAllGuildMembers(guild) {
+	/** @type {import('discord.js').Collection<string, import('discord.js').GuildMember>} */
+	let members = await guild.members.fetch({ limit: 1000 });
+
+	while (members.size < guild.memberCount) {
+		const lastId = members.lastKey();
+		if (!lastId) {
+			break;
+		}
+
+		const next = await guild.members.fetch({ limit: 1000, after: lastId });
+		if (next.size === 0) {
+			break;
+		}
+
+		members = members.concat(next);
+	}
+
+	return members;
+}
+
+/**
  * @param {import('discord.js').Guild} guild
  * @param {string} userId
  */
@@ -49,34 +74,58 @@ async function fetchMember(guild, userId) {
 }
 
 /**
- * Remove a role from a specific member by id (if they still have it), then add to the new holder.
- * Uses direct member fetches instead of iterating role.members (avoids GuildMembers privileged intent).
+ * Remove a role from every member except the sole holder.
  *
- * @param {import('discord.js').Guild} guild
+ * @param {import('discord.js').Collection<string, import('discord.js').GuildMember>} members
  * @param {string} roleId
- * @param {string} prevHolderId Previous holder's user id (empty string = none).
- * @param {string} newHolderId New holder's user id.
- * @returns {Promise<{ removedFrom: string; added: boolean }>}
+ * @param {string} keepUserId
+ * @returns {Promise<string[]>}
  */
-async function reassignRole(guild, roleId, prevHolderId, newHolderId) {
-	let removedFrom = '';
+async function stripRoleFromAllMembers(members, roleId, keepUserId) {
+	/** @type {string[]} */
+	const removedFrom = [];
 
-	if (prevHolderId && prevHolderId !== newHolderId) {
+	for (const member of members.values()) {
+		if (member.id === keepUserId || !member.roles.cache.has(roleId)) {
+			continue;
+		}
+
 		try {
-			const prev = await fetchMember(guild, prevHolderId);
-			if (prev.roles.cache.has(roleId)) {
-				await prev.roles.remove(roleId);
-				removedFrom = prev.user.username;
-			}
-		} catch {
-			// Member may have left the server; ignore.
+			await member.roles.remove(roleId);
+			removedFrom.push(member.user.username);
+		} catch (err) {
+			console.error(`roles: failed to remove role ${roleId} from ${member.id}:`, err);
 		}
 	}
 
-	const newMember = await fetchMember(guild, newHolderId);
-	const added = !newMember.roles.cache.has(roleId);
+	return removedFrom;
+}
+
+/**
+ * Ensure exactly one member holds a role: strip everyone else, then give it to the holder.
+ *
+ * @param {import('discord.js').Guild} guild
+ * @param {import('discord.js').Collection<string, import('discord.js').GuildMember>} members
+ * @param {string} roleId
+ * @param {string} holderUserId
+ * @returns {Promise<{ removedFrom: string[]; added: boolean }>}
+ */
+async function assignExclusiveRole(guild, members, roleId, holderUserId) {
+	const removedFrom = await stripRoleFromAllMembers(members, roleId, holderUserId);
+
+	const holder = await fetchMember(guild, holderUserId);
+	const added = !holder.roles.cache.has(roleId);
 	if (added) {
-		await newMember.roles.add(roleId);
+		await holder.roles.add(roleId);
+	}
+
+	// Belt-and-suspenders: refresh member list and strip any stragglers missed by cache.
+	const refreshed = await fetchAllGuildMembers(guild);
+	const stragglers = await stripRoleFromAllMembers(refreshed, roleId, holderUserId);
+	for (const name of stragglers) {
+		if (!removedFrom.includes(name)) {
+			removedFrom.push(name);
+		}
 	}
 
 	return { removedFrom, added };
@@ -84,13 +133,14 @@ async function reassignRole(guild, roleId, prevHolderId, newHolderId) {
 
 /**
  * Assigns Champion and Runner-Up roles and records state. Champion and runner-up must be
- * different users. Tracking / win counts are handled by the caller (champion only).
+ * different users. Each role ends up on exactly one member. Tracking / win counts are
+ * handled by the caller (champion only).
  *
  * @param {import('discord.js').Guild} guild
  * @param {'open' | 'nb'} category
  * @param {string} newChampionUserId
  * @param {string} newRunnerUpUserId
- * @returns {Promise<string>} confirmation message
+ * @returns {Promise<string>}
  */
 export async function assignBracketRoles(guild, category, newChampionUserId, newRunnerUpUserId) {
 	if (newChampionUserId === newRunnerUpUserId) {
@@ -100,33 +150,17 @@ export async function assignBracketRoles(guild, category, newChampionUserId, new
 	const { championRoleId, runnerUpRoleId } = getRoleIds(category);
 	const label = category === 'open' ? 'Open' : 'NB';
 	const state = await readState();
+	const members = await fetchAllGuildMembers(guild);
 
 	const prevChampKey = category === 'open' ? 'openChampion' : 'nbChampion';
 	const prevRuKey = category === 'open' ? 'openRunnerUp' : 'nbRunnerUp';
 
-	const prevChamp = state[prevChampKey] || '';
-	const prevRu = state[prevRuKey] || '';
-
-	const champResult = await reassignRole(guild, championRoleId, prevChamp, newChampionUserId);
-	const ruResult = await reassignRole(guild, runnerUpRoleId, prevRu, newRunnerUpUserId);
+	const champResult = await assignExclusiveRole(guild, members, championRoleId, newChampionUserId);
+	const ruResult = await assignExclusiveRole(guild, members, runnerUpRoleId, newRunnerUpUserId);
 
 	state[prevChampKey] = newChampionUserId;
 	state[prevRuKey] = newRunnerUpUserId;
 	await writeState(state);
 
-	const lines = [`**${label} roles assigned.**`];
-	if (champResult.removedFrom) lines.push(`Removed ${label} Champion from **${champResult.removedFrom}**.`);
-	lines.push(
-		champResult.added
-			? `Gave ${label} Champion to <@${newChampionUserId}>.`
-			: `<@${newChampionUserId}> already held ${label} Champion.`,
-	);
-	if (ruResult.removedFrom) lines.push(`Removed ${label} Runner-Up from **${ruResult.removedFrom}**.`);
-	lines.push(
-		ruResult.added
-			? `Gave ${label} Runner-Up to <@${newRunnerUpUserId}>.`
-			: `<@${newRunnerUpUserId}> already held ${label} Runner-Up.`,
-	);
-
-	return lines.join('\n');
+	return `**${label} roles assigned.**`;
 }

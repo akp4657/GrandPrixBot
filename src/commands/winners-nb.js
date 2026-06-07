@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, PermissionFlagsBits } from 'discord.js';
+import { ApplicationCommandOptionType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { runWinnersBracketCommand } from '../util/winnersBracketCommand.js';
 
 /** @type {import('./index.js').Command} */
@@ -23,6 +23,7 @@ export default {
 		],
 	},
 	async execute(interaction) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 		await runWinnersBracketCommand(interaction, 'nb');
 	},
 };

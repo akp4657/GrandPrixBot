@@ -1,3 +1,4 @@
+import { MessageFlags } from 'discord.js';
 import { assignBracketRoles } from './roles.js';
 import { incrementWinner } from './tracking.js';
 
@@ -6,7 +7,9 @@ import { incrementWinner } from './tracking.js';
  * @param {'open' | 'nb'} category
  */
 export async function runWinnersBracketCommand(interaction, category) {
-	await interaction.deferReply({ ephemeral: true });
+	if (!interaction.deferred && !interaction.replied) {
+		await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+	}
 
 	const champion = interaction.options.getUser('champion', true);
 	const runnerUp = interaction.options.getUser('runner_up', true);

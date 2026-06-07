@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { notifyAdminRoundComplete } from './adminNotify.js';
 import {
 	challongeTournamentUrl,
@@ -9,13 +9,13 @@ import {
 	roundForMatchId,
 	updateMatchScores,
 } from './challonge.js';
-import { getHeatSlug } from './heatConfig.js';
+import { getHeatSlug, listHeats } from './heatConfig.js';
 
 const MAX_SELECT_OPTIONS = 25;
 /** Discord modal text input labels max length. */
 const MODAL_LABEL_MAX = 45;
 
-const EXTRA_SETS_PATTERN = /^(\d+-\d+)(,\d+-\d+)*$/;
+export const SCORE_REPORT_SELECT_CUSTOM_ID = 'scoreReport:match';
 
 /** Challonge winner: higher round count wins if that count is at least this many. */
 const ROUNDS_TO_WIN = 3;
@@ -65,36 +65,44 @@ function modalGamesLabel(displayName) {
 }
 
 /**
- * @param {1 | 2} heatNumber
+ * @param {number} heatNumber
  * @param {number} matchId
  * @returns {string}
  */
-export function reportHeatScoreModalCustomId(heatNumber, matchId) {
-	return `reportHeat:${heatNumber}:score:${matchId}`;
+export function scoreReportModalCustomId(heatNumber, matchId) {
+	return `scoreReport:${heatNumber}:score:${matchId}`;
 }
 
 /**
  * @param {import('discord.js').StringSelectMenuInteraction} interaction
- * @returns {1 | 2 | null}
+ * @returns {boolean}
  */
-export function parseHeatFromSelectCustomId(interaction) {
-	const m = interaction.customId.match(/^reportHeat:(1|2):match$/);
-	if (!m) {
-		return null;
-	}
-	return /** @type {1 | 2} */ (Number(m[1]));
+export function isScoreReportSelect(interaction) {
+	return interaction.customId === SCORE_REPORT_SELECT_CUSTOM_ID;
 }
 
 /**
  * @param {import('discord.js').ModalSubmitInteraction} interaction
- * @returns {{ heatNumber: 1 | 2; matchId: number } | null}
+ * @returns {{ heatNumber: number; matchId: number } | null}
  */
-export function parseHeatScoreModalCustomId(interaction) {
-	const m = interaction.customId.match(/^reportHeat:(1|2):score:(\d+)$/);
+export function parseScoreReportModalCustomId(interaction) {
+	const m = interaction.customId.match(/^scoreReport:(\d+):score:(\d+)$/);
 	if (!m) {
 		return null;
 	}
-	return { heatNumber: /** @type {1 | 2} */ (Number(m[1])), matchId: Number(m[2]) };
+	return { heatNumber: Number(m[1]), matchId: Number(m[2]) };
+}
+
+/**
+ * @param {string} value
+ * @returns {{ heatNumber: number; matchId: number } | null}
+ */
+function parseScoreReportSelectValue(value) {
+	const m = value.match(/^(\d+):(\d+)$/);
+	if (!m) {
+		return null;
+	}
+	return { heatNumber: Number(m[1]), matchId: Number(m[2]) };
 }
 
 /**
@@ -106,20 +114,41 @@ function truncateLabel(label) {
 }
 
 /**
+ * @returns {Promise<Array<{ heatNumber: number; id: number; state: string; label: string }>>}
+ */
+async function listAllReportableMatches() {
+	/** @type {Array<{ heatNumber: number; id: number; state: string; label: string }>} */
+	const out = [];
+
+	for (const { number: heatNumber, slug } of await listHeats()) {
+		if (!slug) continue;
+
+		try {
+			const matches = await listReportableMatches(slug);
+			for (const m of matches) {
+				out.push({ heatNumber, ...m });
+			}
+		} catch (error) {
+			console.error(`score-report load heat ${heatNumber} (${slug}):`, error);
+		}
+	}
+
+	return out;
+}
+
+/**
  * @param {import('discord.js').ChatInputCommandInteraction} interaction
- * @param {1 | 2} heatNumber
  * @returns {Promise<void>}
  */
-export async function executeReportHeatCommand(interaction, heatNumber) {
-	await interaction.deferReply({ ephemeral: true });
+export async function executeScoreReportCommand(interaction) {
+	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 	try {
-		const slug = await getHeatSlug(heatNumber);
-		const matches = await listReportableMatches(slug);
+		const matches = await listAllReportableMatches();
 
 		if (matches.length === 0) {
 			await interaction.editReply({
-				content: `No open or pending matches found for **${slug}**.`,
+				content: 'No open or pending matches found across configured heats.',
 			});
 			return;
 		}
@@ -127,27 +156,27 @@ export async function executeReportHeatCommand(interaction, heatNumber) {
 		const capped = matches.length > MAX_SELECT_OPTIONS;
 		const slice = matches.slice(0, MAX_SELECT_OPTIONS);
 
-		console.log(slice);
 		const select = new StringSelectMenuBuilder()
-			.setCustomId(`reportHeat:${heatNumber}:match`)
+			.setCustomId(SCORE_REPORT_SELECT_CUSTOM_ID)
 			.setPlaceholder('Select a match to report')
 			.addOptions(
 				slice.map((m) => ({
 					label: truncateLabel(m.label),
-					value: String(m.id),
-					description: m.state === 'complete' ? 'Makeup' : 'Open',
+					value: `${m.heatNumber}:${m.id}`,
+					description: `Heat ${m.heatNumber} · ${m.state === 'complete' ? 'Makeup' : 'Open'}`,
 				})),
 			);
 
 		const row = new ActionRowBuilder().addComponents(select);
 
-		await interaction.editReply({
-			content: `Heat: ${challongeTournamentUrl(slug)}`,
-			components: [row],
-		});
+		const content = capped
+			? `Select a match to report (showing first ${MAX_SELECT_OPTIONS} of ${matches.length}).`
+			: 'Select a match to report.';
+
+		await interaction.editReply({ content, components: [row] });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.error('report-heat command:', error);
+		console.error('score-report command:', error);
 		await interaction.editReply({
 			content: `Could not load matches: ${message}`,
 		});
@@ -158,40 +187,30 @@ export async function executeReportHeatCommand(interaction, heatNumber) {
  * @param {import('discord.js').StringSelectMenuInteraction} interaction
  * @returns {Promise<void>}
  */
-export async function handleReportHeatSelect(interaction) {
-	const heatNumber = parseHeatFromSelectCustomId(interaction);
-	if (heatNumber === null) {
+export async function handleScoreReportSelect(interaction) {
+	if (!isScoreReportSelect(interaction)) {
 		return;
 	}
 
-	const matchId = Number(interaction.values[0]);
-	if (!Number.isFinite(matchId)) {
-		await interaction.reply({ content: 'Invalid match selection.', ephemeral: true });
+	const parsed = parseScoreReportSelectValue(interaction.values[0] ?? '');
+	if (!parsed) {
+		await interaction.reply({ content: 'Invalid match selection.', flags: MessageFlags.Ephemeral });
 		return;
 	}
 
-	let names;
-	try {
-		const slug = await getHeatSlug(heatNumber);
-		names = await getMatchDisplayNames(slug, matchId);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.error('report-heat select (names):', error);
-		await interaction.reply({
-			content: `Could not load match details: ${message}`,
-			ephemeral: true,
-		});
-		return;
-	}
+	const { heatNumber, matchId } = parsed;
+	const selectedOption = interaction.component.options.find((o) => o.value === interaction.values[0]);
+	const matchLabel = selectedOption?.label ?? 'Player 1 vs Player 2';
+	const vsSplit = matchLabel.split(/\s+vs\s+/i);
+	const player1 = vsSplit[0]?.trim() || 'Player 1';
+	const player2 = vsSplit[1]?.trim() || 'Player 2';
 
-	const modal = new ModalBuilder()
-		.setCustomId(reportHeatScoreModalCustomId(heatNumber, matchId))
-		.setTitle('Score Report');
+	const modal = new ModalBuilder().setCustomId(scoreReportModalCustomId(heatNumber, matchId)).setTitle('Score Report');
 
 	// Challonge order: player1 slot first, player2 second (matches bracket).
 	const p1Input = new TextInputBuilder()
 		.setCustomId('p1_score')
-		.setLabel(modalGamesLabel(names.player1))
+		.setLabel(modalGamesLabel(player1))
 		.setStyle(TextInputStyle.Short)
 		.setRequired(true)
 		.setMaxLength(1)
@@ -199,7 +218,7 @@ export async function handleReportHeatSelect(interaction) {
 
 	const p2Input = new TextInputBuilder()
 		.setCustomId('p2_score')
-		.setLabel(modalGamesLabel(names.player2))
+		.setLabel(modalGamesLabel(player2))
 		.setStyle(TextInputStyle.Short)
 		.setRequired(true)
 		.setMaxLength(1)
@@ -214,8 +233,8 @@ export async function handleReportHeatSelect(interaction) {
  * @param {import('discord.js').ModalSubmitInteraction} interaction
  * @returns {Promise<void>}
  */
-export async function handleReportHeatScoreModal(interaction) {
-	const parsed = parseHeatScoreModalCustomId(interaction);
+export async function handleScoreReportModal(interaction) {
+	const parsed = parseScoreReportModalCustomId(interaction);
 	if (!parsed) {
 		return;
 	}
@@ -225,13 +244,15 @@ export async function handleReportHeatScoreModal(interaction) {
 	const p1 = Number(interaction.fields.getTextInputValue('p1_score').trim());
 	const p2 = Number(interaction.fields.getTextInputValue('p2_score').trim());
 
-	if (p1 < 0 || p2 < 0) {
+	if (!Number.isFinite(p1) || !Number.isFinite(p2) || p1 < 0 || p2 < 0) {
 		await interaction.reply({
 			content: 'Enter non-negative whole numbers for both players’ round counts.',
-			ephemeral: true,
+			flags: MessageFlags.Ephemeral,
 		});
 		return;
 	}
+
+	await interaction.deferReply();
 
 	try {
 		const slug = await getHeatSlug(heatNumber);
@@ -239,10 +260,7 @@ export async function handleReportHeatScoreModal(interaction) {
 		const winnerId = resolveWinnerId(p1, p2, meta.player1Id, meta.player2Id);
 
 		if (winnerId === null) {
-			await interaction.reply({
-				content: `Match needs a clear winner.`,
-				ephemeral: true,
-			});
+			await interaction.editReply({ content: 'Match needs a clear winner.' });
 			return;
 		}
 
@@ -256,7 +274,7 @@ export async function handleReportHeatScoreModal(interaction) {
 		const roundDoneAfter = isRoundFullyComplete(afterMatches, round);
 		if (!roundDoneBefore && roundDoneAfter) {
 			void notifyAdminRoundComplete(interaction.client, { heatNumber, slug, round }).catch((err) =>
-				console.error('admin round-complete DM:', err),
+				console.error('admin round-complete post:', err),
 			);
 		}
 
@@ -270,13 +288,10 @@ export async function handleReportHeatScoreModal(interaction) {
 			`Reported by: **${reporter}**`,
 		].join('\n');
 
-		await interaction.reply({ content, ephemeral: false });
+		await interaction.editReply({ content });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.error('report-heat modal:', error);
-		await interaction.reply({
-			content: `Failed to update Challonge: ${message}`,
-			ephemeral: true,
-		});
+		console.error('score-report modal:', error);
+		await interaction.editReply({ content: `Failed to update Challonge: ${message}` });
 	}
 }

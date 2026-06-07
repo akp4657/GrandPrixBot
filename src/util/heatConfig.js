@@ -1,46 +1,89 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const HEAT1_PREFIX = 'Heat 1:';
-const HEAT2_PREFIX = 'Heat 2:';
+const TRACKING_FILE = 'tracking.txt';
+const HEAT_LINE_RE = /^Heat (\d+):\s*(.*)$/i;
 
 /**
- * @param {string} content
- * @param {string} prefix
- * @returns {string | undefined}
+ * @param {string} line
+ * @returns {boolean}
  */
-function parseLine(content, prefix) {
+export function isHeatConfigLine(line) {
+	return HEAT_LINE_RE.test(line.trim());
+}
+
+/**
+ * Parse `Heat N: slug` lines from text (full file or modal input).
+ *
+ * @param {string} content
+ * @returns {Map<number, string>}
+ */
+export function parseHeatLines(content) {
+	/** @type {Map<number, string>} */
+	const heats = new Map();
+
 	for (const line of content.split(/\r?\n/)) {
 		const trimmed = line.trim();
-		if (trimmed.startsWith(prefix)) {
-			return trimmed.slice(prefix.length).trim();
-		}
+		if (!trimmed) continue;
+
+		const match = trimmed.match(HEAT_LINE_RE);
+		if (!match) continue;
+
+		const heatNumber = Number(match[1]);
+		if (!Number.isFinite(heatNumber) || heatNumber < 1) continue;
+
+		heats.set(heatNumber, (match[2] ?? '').trim());
 	}
-	return undefined;
+
+	return heats;
 }
 
 /**
- * Reads tracking.txt from the project root and returns Challonge tournament slugs.
- *
- * @returns {Promise<{ heat1: string; heat2: string }>}
+ * @param {Map<number, string>} heats
+ * @returns {string[]}
+ */
+export function formatHeatLines(heats) {
+	return [...heats.entries()]
+		.sort(([a], [b]) => a - b)
+		.map(([number, slug]) => `Heat ${number}: ${slug}`);
+}
+
+/**
+ * @returns {Promise<Map<number, string>>}
  */
 export async function readHeatConfig() {
-	const filePath = join(process.cwd(), 'tracking.txt');
+	const filePath = join(process.cwd(), TRACKING_FILE);
 	const content = await readFile(filePath, 'utf-8');
-	const heat1 = parseLine(content, HEAT1_PREFIX);
-	const heat2 = parseLine(content, HEAT2_PREFIX);
-	return { heat1: heat1 ?? '', heat2: heat2 ?? '' };
+	return parseHeatLines(content);
 }
 
 /**
- * @param {1 | 2} heatNumber
+ * @returns {Promise<Array<{ number: number; slug: string }>>}
+ */
+export async function listHeats() {
+	const heats = await readHeatConfig();
+	return [...heats.entries()]
+		.sort(([a], [b]) => a - b)
+		.map(([number, slug]) => ({ number, slug }));
+}
+
+/**
+ * @param {number} heatNumber
  * @returns {Promise<string>}
  */
 export async function getHeatSlug(heatNumber) {
-	const { heat1, heat2 } = await readHeatConfig();
-	const slug = heatNumber === 1 ? heat1 : heat2;
+	const heats = await readHeatConfig();
+	const slug = heats.get(heatNumber);
 	if (!slug) {
-		throw new Error(heatNumber === 1 ? 'Heat 1 is not configured.' : 'Heat 2 is not configured.');
+		throw new Error(`Heat ${heatNumber} is not configured.`);
 	}
 	return slug;
+}
+
+/**
+ * @returns {Promise<string[]>}
+ */
+export async function getConfiguredHeatSlugs() {
+	const heats = await listHeats();
+	return heats.map(({ slug }) => slug).filter(Boolean);
 }

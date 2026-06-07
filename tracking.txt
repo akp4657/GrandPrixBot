@@ -1,5 +1,11 @@
-Heat 1: y7gcepok
-Heat 2: rz9zb4cm
-DueDate: 2026-11-04 01:45
-WinnersOpen: {}
+Heat 1: JuneGP1
+Heat 2: JuneGP2
+Heat 4: JuneGP4
+Heat 5: JuneGP5
+Heat 6: JuneGP6
+DueDateMatchesClosed: 
+DueDateClosedCount: 0
+DueDateNotified: 
+DueDate: 2026-06-12 23:59
+WinnersOpen: {"294249124377788416":1}
 WinnersNB: {}
