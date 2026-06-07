@@ -7,8 +7,10 @@
 	"scripts": {
 		"lint": "prettier --check . && eslint --ext .js,.mjs,.cjs --format=pretty src",
 		"format": "prettier --write . && eslint --ext .js,.mjs,.cjs --fix --format=pretty src",
-		"start": "node --env-file=.env src/index.js",
-		"deploy": "node --env-file=.env src/util/deploy.js"
+		"start": "node src/index.js",
+		"start:dev": "node --env-file=.env src/index.js",
+		"deploy": "node src/util/deploy.js",
+		"deploy:dev": "node --env-file=.env src/util/deploy.js"
 	},
 	"dependencies": {
 		"@discordjs/core": "^2.3.0",
