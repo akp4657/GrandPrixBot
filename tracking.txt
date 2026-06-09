@@ -1,5 +1,6 @@
 Heat 1: JuneGP1
 Heat 2: JuneGP2
+Heat 3: JuneGP3
 Heat 4: JuneGP4
 Heat 5: JuneGP5
 Heat 6: JuneGP6
