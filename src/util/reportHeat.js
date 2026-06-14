@@ -252,7 +252,7 @@ export async function handleScoreReportModal(interaction) {
 		return;
 	}
 
-	await interaction.deferReply();
+	await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
 	try {
 		const slug = await getHeatSlug(heatNumber);
@@ -288,7 +288,14 @@ export async function handleScoreReportModal(interaction) {
 			`Reported by: **${reporter}**`,
 		].join('\n');
 
-		await interaction.editReply({ content });
+		const channel = interaction.channel;
+		if (!channel?.isTextBased()) {
+			await interaction.editReply({ content: 'Could not post match result — channel unavailable.' });
+			return;
+		}
+
+		await channel.send(content);
+		await interaction.editReply({ content: 'Match result posted.' });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.error('score-report modal:', error);
