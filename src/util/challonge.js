@@ -148,7 +148,7 @@ export async function fetchParticipantsMap(tournamentSlug) {
  * Lists matches for a tournament and returns reportable ones (open / pending).
  *
  * @param {string} tournamentSlug
- * @returns {Promise<Array<{ id: number; state: string; label: string }>>}
+ * @returns {Promise<Array<{ id: number; state: string; label: string; round: number }>>}
  */
 export async function listReportableMatches(tournamentSlug) {
 	const matchesUrl = new URL(`${BASE}/tournaments/${encodeURIComponent(tournamentSlug)}/matches.json`);
@@ -171,12 +171,12 @@ export async function listReportableMatches(tournamentSlug) {
 		throw new Error('Unexpected Challonge matches response.');
 	}
 
-	/** @type {Array<{ id: number; state: string; label: string }>} */
+	/** @type {Array<{ id: number; state: string; label: string; round: number }>} */
 	const out = [];
 	for (const item of data) {
 		const norm = normalizeMatch(item, participantMap);
 		if (REPORTABLE_STATES.has(norm.state) || norm.raw.winner_id === null) {
-			out.push({ id: norm.id, state: norm.state, label: norm.label });
+			out.push({ id: norm.id, state: norm.state, label: norm.label, round: norm.round });
 		}
 	}
 	return out;
@@ -349,6 +349,24 @@ export async function listOpenMatches(tournamentSlug) {
  */
 export async function closeMatchAsDraw(tournamentSlug, matchId) {
 	await updateMatchScores(tournamentSlug, matchId, '0-0', 'tie');
+}
+
+/**
+ * Reopens a completed match (clears result and resets downstream bracket slots).
+ *
+ * @param {string} tournamentSlug
+ * @param {number} matchId
+ * @returns {Promise<void>}
+ */
+export async function reopenMatch(tournamentSlug, matchId) {
+	const url = `${BASE}/tournaments/${encodeURIComponent(tournamentSlug)}/matches/${matchId}/reopen.json`;
+	const res = await fetch(url, {
+		method: 'POST',
+		headers: { ...authHeaders() },
+	});
+	if (!res.ok) {
+		await throwForBadResponse(res);
+	}
 }
 
 /**

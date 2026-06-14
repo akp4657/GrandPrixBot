@@ -74,7 +74,7 @@ export async function handleConfigureHeatModal(interaction) {
 		content: [
 			'Heat configuration saved.',
 			heatLines.length ? heatLines.join('\n') : '(no heats configured)',
-			`**Due date:** ${dateTime || '(not set — use /set-due-date)'}`,
+			`**Due date:** ${dateTime || '(not set)'}`,
 		].join('\n'),
 	});
 }

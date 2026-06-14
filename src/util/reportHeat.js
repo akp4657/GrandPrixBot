@@ -1,4 +1,11 @@
-import { ActionRowBuilder, MessageFlags, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import {
+	ActionRowBuilder,
+	MessageFlags,
+	ModalBuilder,
+	StringSelectMenuBuilder,
+	TextInputBuilder,
+	TextInputStyle,
+} from 'discord.js';
 import { notifyAdminRoundComplete } from './adminNotify.js';
 import {
 	challongeTournamentUrl,
@@ -14,6 +21,10 @@ import { getHeatSlug, listHeats } from './heatConfig.js';
 const MAX_SELECT_OPTIONS = 25;
 /** Discord modal text input labels max length. */
 const MODAL_LABEL_MAX = 45;
+
+// TODO: REMOVE AFTER ROUND 3
+/** Only list matches with Challonge round strictly less than this (i.e. rounds 1–3). */
+const SCORE_REPORT_MAX_ROUND_EXCLUSIVE = 4;
 
 export const SCORE_REPORT_SELECT_CUSTOM_ID = 'scoreReport:match';
 
@@ -126,6 +137,8 @@ async function listAllReportableMatches() {
 		try {
 			const matches = await listReportableMatches(slug);
 			for (const m of matches) {
+				// TODO: REMOVE AFTER ROUND 3
+				if (m.round >= SCORE_REPORT_MAX_ROUND_EXCLUSIVE) continue;
 				out.push({ heatNumber, ...m });
 			}
 		} catch (error) {
