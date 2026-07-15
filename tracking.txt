@@ -1,12 +1,10 @@
-Heat 1: JuneGP1
-Heat 2: JuneGP2
-Heat 3: JuneGP3
-Heat 4: JuneGP4
-Heat 5: JuneGP5
-Heat 6: JuneGP6
-DueDate: 
+Heat 1: NBHeat1
+Heat 2: NBHeat2
+Heat 3: NBHeat3
+Heat 4: NBHeat4
 DueDateMatchesClosed: 
 DueDateClosedCount: 0
 DueDateNotified: 
+DueDate: 2026-07-18 23:59
 WinnersOpen: {"294249124377788416":1}
 WinnersNB: {}
