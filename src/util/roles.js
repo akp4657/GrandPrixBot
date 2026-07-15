@@ -1,6 +1,6 @@
 import process from 'node:process';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { resolveDataFile } from './dataDir.js';
 
 const ROLES_STATE_FILE = 'roles-state.json';
 
@@ -11,7 +11,7 @@ const ROLES_STATE_FILE = 'roles-state.json';
 /** @returns {Promise<RolesState>} */
 async function readState() {
 	try {
-		const raw = await readFile(join(process.cwd(), ROLES_STATE_FILE), 'utf-8');
+		const raw = await readFile(await resolveDataFile(ROLES_STATE_FILE), 'utf-8');
 		return /** @type {RolesState} */ (JSON.parse(raw));
 	} catch {
 		return { openChampion: '', openRunnerUp: '', nbChampion: '', nbRunnerUp: '' };
@@ -20,7 +20,7 @@ async function readState() {
 
 /** @param {RolesState} state */
 async function writeState(state) {
-	await writeFile(join(process.cwd(), ROLES_STATE_FILE), JSON.stringify(state, null, 2), 'utf-8');
+	await writeFile(await resolveDataFile(ROLES_STATE_FILE), JSON.stringify(state, null, 2), 'utf-8');
 }
 
 /**

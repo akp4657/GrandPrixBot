@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { resolveDataFile } from './dataDir.js';
 import { formatHeatLines, isHeatConfigLine } from './heatConfig.js';
 
 const TRACKING_FILE = 'tracking.txt';
@@ -200,7 +200,7 @@ function serializeTracking(data) {
 
 /** @returns {Promise<string>} raw path to tracking.txt */
 function trackingPath() {
-	return Promise.resolve(join(process.cwd(), TRACKING_FILE));
+	return resolveDataFile(TRACKING_FILE);
 }
 
 /**

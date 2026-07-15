@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { resolveDataFile } from './dataDir.js';
 
 const TRACKING_FILE = 'tracking.txt';
 const HEAT_LINE_RE = /^Heat (\d+):\s*(.*)$/i;
@@ -52,7 +52,7 @@ export function formatHeatLines(heats) {
  * @returns {Promise<Map<number, string>>}
  */
 export async function readHeatConfig() {
-	const filePath = join(process.cwd(), TRACKING_FILE);
+	const filePath = await resolveDataFile(TRACKING_FILE);
 	const content = await readFile(filePath, 'utf-8');
 	return parseHeatLines(content);
 }

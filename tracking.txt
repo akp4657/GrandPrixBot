@@ -4,9 +4,9 @@ Heat 3: JuneGP3
 Heat 4: JuneGP4
 Heat 5: JuneGP5
 Heat 6: JuneGP6
+DueDate: 
 DueDateMatchesClosed: 
 DueDateClosedCount: 0
 DueDateNotified: 
-DueDate: 2026-06-19 23:59
 WinnersOpen: {"294249124377788416":1}
 WinnersNB: {}

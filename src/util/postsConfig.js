@@ -1,6 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { resolveDataFile } from './dataDir.js';
 
 const POSTS_FILE = 'posts-config.txt';
 
@@ -61,9 +61,8 @@ function serializePostsConfig(cfg) {
 
 /** @returns {Promise<PostsConfig>} */
 export async function readPostsConfig() {
-	const path = join(process.cwd(), POSTS_FILE);
 	try {
-		const raw = await readFile(path, 'utf-8');
+		const raw = await readFile(await resolveDataFile(POSTS_FILE), 'utf-8');
 		return parsePostsConfig(raw);
 	} catch {
 		return { xLinks: [], googleForm: '', msg1st: '', msg15th: '', msgLast: '' };
@@ -72,7 +71,7 @@ export async function readPostsConfig() {
 
 /** @param {PostsConfig} cfg */
 async function writePostsConfig(cfg) {
-	await writeFile(join(process.cwd(), POSTS_FILE), serializePostsConfig(cfg), 'utf-8');
+	await writeFile(await resolveDataFile(POSTS_FILE), serializePostsConfig(cfg), 'utf-8');
 }
 
 /**
