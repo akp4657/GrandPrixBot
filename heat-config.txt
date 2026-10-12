@@ -1,4 +1,0 @@
-Heat 1: grandprixtest
-Heat 2: y7gcepok
-DueDate: 2026-01-27 12:45
-Discord Timestamp: <t:1769535900:f>

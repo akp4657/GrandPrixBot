@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 /**
- * Directory for mutable state files (tracking, roles, posts).
+ * Directory for mutable state files (tournament config and winner state).
  * Set `DATA_DIR=/data` on Render when using a persistent disk.
  * Falls back to the process working directory for local development.
  *
@@ -12,10 +12,7 @@ import process from 'node:process';
  */
 export function getDataDir() {
 	let dir = (process.env.DATA_DIR ?? '').trim();
-	if (
-		(dir.startsWith('"') && dir.endsWith('"')) ||
-		(dir.startsWith("'") && dir.endsWith("'"))
-	) {
+	if ((dir.startsWith('"') && dir.endsWith('"')) || (dir.startsWith("'") && dir.endsWith("'"))) {
 		dir = dir.slice(1, -1);
 	}
 	return dir || process.cwd();

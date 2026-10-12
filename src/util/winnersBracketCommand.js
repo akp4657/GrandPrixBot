@@ -1,6 +1,6 @@
 import { MessageFlags } from 'discord.js';
 import { assignBracketRoles } from './roles.js';
-import { incrementWinner } from './tracking.js';
+import { incrementWinner } from './winnerState.js';
 
 /**
  * @param {import('discord.js').ChatInputCommandInteraction} interaction
@@ -16,16 +16,16 @@ export async function runWinnersBracketCommand(interaction, category) {
 
 	try {
 		const message = await assignBracketRoles(interaction.guild, category, champion.id, runnerUp.id);
-		let trackingLine = '';
+		let winnerLine = '';
 		try {
 			const total = await incrementWinner(category, champion.id);
 			const label = category === 'open' ? 'Open' : 'NB';
-			trackingLine = `\nRecorded **${label}** win for <@${champion.id}> (total: **${total}**).`;
+			winnerLine = `\nRecorded **${label}** win for <@${champion.id}> (total: **${total}**).`;
 		} catch (trackErr) {
 			console.error('winners-bracket: incrementWinner failed:', trackErr);
-			trackingLine = '\n**Warning:** roles updated but `tracking.txt` win count failed — check logs.';
+			winnerLine = '\n**Warning:** roles updated but winner count failed — check logs.';
 		}
-		await interaction.editReply({ content: message + trackingLine });
+		await interaction.editReply({ content: message + winnerLine });
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : String(error);
 		await interaction.editReply({ content: `Error: ${msg}` });

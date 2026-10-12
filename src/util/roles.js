@@ -1,27 +1,4 @@
 import process from 'node:process';
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolveDataFile } from './dataDir.js';
-
-const ROLES_STATE_FILE = 'roles-state.json';
-
-/**
- * @typedef {{ openChampion: string; openRunnerUp: string; nbChampion: string; nbRunnerUp: string }} RolesState
- */
-
-/** @returns {Promise<RolesState>} */
-async function readState() {
-	try {
-		const raw = await readFile(await resolveDataFile(ROLES_STATE_FILE), 'utf-8');
-		return /** @type {RolesState} */ (JSON.parse(raw));
-	} catch {
-		return { openChampion: '', openRunnerUp: '', nbChampion: '', nbRunnerUp: '' };
-	}
-}
-
-/** @param {RolesState} state */
-async function writeState(state) {
-	await writeFile(await resolveDataFile(ROLES_STATE_FILE), JSON.stringify(state, null, 2), 'utf-8');
-}
 
 /**
  * @param {'open' | 'nb'} category
@@ -149,18 +126,10 @@ export async function assignBracketRoles(guild, category, newChampionUserId, new
 
 	const { championRoleId, runnerUpRoleId } = getRoleIds(category);
 	const label = category === 'open' ? 'Open' : 'NB';
-	const state = await readState();
 	const members = await fetchAllGuildMembers(guild);
 
-	const prevChampKey = category === 'open' ? 'openChampion' : 'nbChampion';
-	const prevRuKey = category === 'open' ? 'openRunnerUp' : 'nbRunnerUp';
-
-	const champResult = await assignExclusiveRole(guild, members, championRoleId, newChampionUserId);
-	const ruResult = await assignExclusiveRole(guild, members, runnerUpRoleId, newRunnerUpUserId);
-
-	state[prevChampKey] = newChampionUserId;
-	state[prevRuKey] = newRunnerUpUserId;
-	await writeState(state);
+	await assignExclusiveRole(guild, members, championRoleId, newChampionUserId);
+	await assignExclusiveRole(guild, members, runnerUpRoleId, newRunnerUpUserId);
 
 	return `**${label} roles assigned.**`;
 }

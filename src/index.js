@@ -7,7 +7,12 @@ import { registerGuildCommands } from './util/registerGuildCommands.js';
 await registerGuildCommands();
 
 const client = new Client({
-	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+	intents: [
+		GatewayIntentBits.Guilds,
+		GatewayIntentBits.GuildMembers,
+		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.MessageContent,
+	],
 });
 
 // Load the events and commands

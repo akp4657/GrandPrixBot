@@ -5,18 +5,18 @@ import { runWinnersBracketCommand } from '../util/winnersBracketCommand.js';
 export default {
 	data: {
 		name: 'winners-nb',
-		description: 'NB: set Champion (tracked) and Runner-Up roles (admin only)',
+		description: 'Set winner/runner-up for NEW BLOOD',
 		defaultMemberPermissions: String(PermissionFlagsBits.Administrator),
 		options: [
 			{
 				name: 'champion',
-				description: 'New NB Champion — win count is recorded for this user only',
+				description: 'NEW BLOOD Champion',
 				type: ApplicationCommandOptionType.User,
 				required: true,
 			},
 			{
 				name: 'runner_up',
-				description: 'NB Runner-Up — role only (not added to tracking)',
+				description: 'NEW BLOOD Runner-Up',
 				type: ApplicationCommandOptionType.User,
 				required: true,
 			},
