@@ -15,3 +15,14 @@ Post `@Player1 3 - 2 @Player2` in the configured input channel. Mentions are opt
 Enable Discord's **Message Content Intent** and run `npm run deploy:dev` after command changes.
 
 Administrators can use `/winner-counts` to receive Open and NB win totals as formatted JSON.
+
+To replace winner totals, upload a JSON file with `/import-winner-counts`:
+
+```json
+{
+	"open": [{ "player": "DISCORD_USER_ID", "wins": 1 }],
+	"nb": [{ "player": "DISCORD_USER_ID", "wins": 1 }]
+}
+```
+
+The previous state is backed up on the Render Disk before replacement.
